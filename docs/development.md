@@ -66,9 +66,8 @@ cleans up only that owned temporary prefix. It requires a graphical display (or
 `xvfb-run` on headless CI), Wine, and either `winegcc` or MinGW GCC. It does not
 execute Spark or reuse your default/signed-in prefix.
 
-The prepared CI workflow builds and runs these tests, but publishing that
-workflow currently awaits the owner's GitHub `workflow` authorization; remote
-CI has not run. A green workflow would **not** prove provider login, mail sync,
+The published GitHub Actions workflow builds and runs these tests on push and
+pull requests. A green workflow does **not** prove provider login, mail sync,
 battery life or every desktop behavior. Check the actual result before claiming
 it passed. Compiled-shim artifacts are our own code, not the proprietary app.
 
@@ -128,6 +127,6 @@ vendor binaries or icons should be included. The Google callback application's
 public client identifier is protocol configuration, not a client secret.
 
 Only after tests pass, create a version tag/release and attach artifacts built
-from that exact source. The prepared workflow tests/builds on push and PR once published; it does not
+from that exact source. The workflow tests/builds on push and PR; it does not
 automatically create a release or publish to AUR/Omarchy repos.
 A future public package submission needs its own review and user authorization.

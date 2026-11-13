@@ -174,8 +174,9 @@ logs, a Wine prefix or crash dumps. [Report a problem safely](CONTRIBUTING.md).
 
 See [development](docs/development.md) for build details, CI scope, updating the
 pinned version and testing installation/uninstall in an isolated environment.
-**CI publication is pending the owner's GitHub workflow authorization.** Local
-regression/native tests passed; no remote CI pass is claimed yet.
+[GitHub Actions](https://github.com/JustinBeaudry/spark-omarchy/actions/workflows/test.yml)
+runs regression tests and builds/tests the shim under Wine. Check the actual run
+results; CI does not authenticate to a provider or qualify real mail reliability.
 A local [`PKGBUILD`](PKGBUILD) is provided for Arch users; **this is not an AUR or
 official Omarchy repository package**. It packages only this project's integration
 code and shim. Spark is downloaded separately, as your user, after installation.

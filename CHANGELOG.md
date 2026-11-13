@@ -15,8 +15,7 @@
 - Added metadata-only diagnostics, selective handler restoration, data-preserving
   uninstall and an explicit guarded purge.
 - Added source/package installation docs, troubleshooting, security guidance,
-  development instructions, local PKGBUILD and a prepared CI workflow (publication
-  pending GitHub workflow authorization).
+  development instructions, local PKGBUILD and GitHub Actions regression/native CI.
 
 Local verification includes a clean-prefix startup test, native shim API tests,
 Python regression tests and local Arch package creation. Google sign-in was
