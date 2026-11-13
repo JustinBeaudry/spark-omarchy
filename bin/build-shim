@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Build a real Windows x64 DLL with unwind metadata; never copy vendor DLLs.
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+out=${1:-"$root/build"}
+mkdir -p -- "$out"
+if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
+  x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -Werror -shared -nostdlib \
+    -fno-stack-protector -fasynchronous-unwind-tables \
+    -Wl,--entry,0 -Wl,--no-insert-timestamp \
+    -o "$out/spkenv.dll" "$root/src/spkenv.c" "$root/src/spkenv.def" -lkernel32 -lshell32
+else
+  cc=${CLANG:-clang}
+  include=${WINE_INCLUDE_DIR:-/usr/include/wine}
+  libs=${WINE_LIB_DIR:-/usr/lib/wine/x86_64-windows}
+  if ! command -v "$cc" >/dev/null 2>&1 || [[ ! -f "$include/windows/windows.h" || ! -f "$libs/libkernel32.a" ]]; then
+    echo 'Install clang, binutils and wine (Arch), or use mingw-w64-gcc. See docs/development.md.' >&2
+    exit 1
+  fi
+  "$cc" --target=x86_64-w64-windows-gnu -I"$include/windows" -I"$include/msvcrt" \
+    -fshort-wchar -ffreestanding -fno-stack-protector -fasynchronous-unwind-tables \
+    -O2 -Wall -Wextra -Werror -c "$root/src/spkenv.c" -o "$out/spkenv.o"
+  ld -mi386pep --dll --entry 0 --enable-reloc-section --no-insert-timestamp \
+    -o "$out/spkenv.dll" "$out/spkenv.o" "$root/src/spkenv.def" \
+    -L"$libs" -lkernel32 -lshell32
+fi
+objdump -h "$out/spkenv.dll" | grep -q '\.pdata' || { echo 'Missing x64 unwind metadata' >&2; exit 1; }
+printf 'Built %s/spkenv.dll\n' "$out"

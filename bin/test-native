@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# This test owns and removes only its fresh temporary Wine prefix.
+set -euo pipefail
+root=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+bash "$root/bin/build-shim"
+rm -f -- "$root/build/test_spkenv.exe" "$root/build/test_spkenv.exe.so"
+if command -v x86_64-w64-mingw32-gcc >/dev/null 2>&1; then
+  x86_64-w64-mingw32-gcc -O2 -Wall -Wextra -Werror -o "$root/build/test_spkenv.exe" "$root/tests/test_spkenv.c"
+else
+  winegcc -m64 -Wall -Wextra -Werror -o "$root/build/test_spkenv.exe" "$root/tests/test_spkenv.c"
+fi
+prefix=$(mktemp -d -t spark-omarchy-test-XXXXXXXX)
+export WINEPREFIX="$prefix" WINEDEBUG=-all
+export WINEDLLOVERRIDES='spkenv=n;winemenubuilder.exe=d;mscoree,mshtml=d'
+cleanup() { wineserver -k || true; rm -rf -- "$prefix"; }
+trap cleanup EXIT
+wineboot --init
+if [[ -f "$root/build/test_spkenv.exe.so" ]]; then
+  "$root/build/test_spkenv.exe"
+else
+  wine "$root/build/test_spkenv.exe"
+fi

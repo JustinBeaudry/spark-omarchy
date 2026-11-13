@@ -1,0 +1,4 @@
+LIBRARY spkenv.dll
+EXPORTS
+    GetAllUsersProfileDirectoryW=spark_GetAllUsersProfileDirectoryW
+    GetProfilesDirectoryW=userenv.GetProfilesDirectoryW
