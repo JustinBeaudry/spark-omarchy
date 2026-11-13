@@ -1,0 +1,29 @@
+name: Tests
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  regression-and-native:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install test tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 binutils wine wine64 xvfb xauth desktop-file-utils
+      - name: Python and syntax regression tests
+        run: ./bin/test
+      - name: Build shim and test its Windows API contract
+        run: xvfb-run -a ./bin/test-native
+      - name: Hash our compiled shim
+        run: sha256sum build/spkenv.dll > build/spkenv.dll.sha256
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: spkenv-windows-x64
+          path: |
+            build/spkenv.dll
+            build/spkenv.dll.sha256
+          if-no-files-found: error
