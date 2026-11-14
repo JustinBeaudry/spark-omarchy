@@ -20,14 +20,17 @@ Spark icon. It does **not** turn Spark into a native Linux application.
 - Browser-to-app OAuth callbacks, including Google's callback scheme.
 - An isolated **configuration prefix**, not a security sandbox.
 - No system Wine patch, no VM, no automatic login startup, and **no hard CPU cap**.
+- Opt-in daily checks/downloads of **signed approved updates**; installation always
+  requires confirmation while Spark is closed.
 - Diagnostics that do not collect mail, cookies, callback URLs or crash dumps.
 - Uninstall that preserves account data by default and selectively restores
   previous OAuth handlers.
 
-**Pinned application:** Spark Desktop `3.32.4.141552` (Windows x64).
-Only this reviewed build is accepted. The installer and original/patched
-Foundation DLL have pinned SHA-256 checksums in [`manifest.json`](manifest.json).
-A newer Spark version is **not** assumed compatible.
+**Bootstrap application:** Spark Desktop `3.32.4.141552` (Windows x64), with
+reviewed hashes in [`manifest.json`](manifest.json). Further application updates
+must appear in our Ed25519-signed approval catalog. The initial catalog approves
+only this already-tested build; a newer vendor version is **not** automatically
+assumed compatible. See [approved updates](docs/updates.md).
 
 ## Quick start
 
@@ -36,7 +39,7 @@ A newer Spark version is **not** assumed compatible.
 On Omarchy, run in an interactive terminal:
 
 ```bash
-omarchy pkg add wine 7zip python curl desktop-file-utils clang binutils
+omarchy pkg add wine 7zip python curl desktop-file-utils openssl clang binutils
 ```
 
 `clang` and `binutils` build our small DLL; they are not needed at runtime after
@@ -101,6 +104,23 @@ installed service.
 For the full installation model and an optional Arch package, see
 [installation](docs/installation.md).
 
+### 4. Optional: automatic update downloads
+
+With the new client installed, install `libnotify` if `notify-send` is missing,
+then opt in:
+
+```bash
+spark-omarchy updates enable
+spark-omarchy update --check
+```
+
+The daily timer only checks signed approvals and downloads verified installers.
+When notified, quit Spark and run `spark-omarchy update` to approve a local backup
+and application switch. **It never forces a running session closed or installs
+unattended.** Spark's background self-updater is disabled by a reviewed config
+override; do not use its manual update menu. See [updates and recovery](docs/updates.md)
+for client upgrades, key trust, expiry, snapshots and rollback limitations.
+
 ## Everyday commands
 
 | Command | Purpose |
@@ -111,10 +131,17 @@ For the full installation model and an optional Arch package, see
 | `spark-omarchy doctor --json` | Machine-readable metadata checks; no mail/log collection |
 | `spark-omarchy repair` | Recreate owned launcher/units and register OAuth handlers |
 | `spark-omarchy stop` | Stop the whole dedicated prefix; prefer normal close for saving state |
+| `spark-omarchy update --check` | Check signed approvals without downloading the app |
+| `spark-omarchy update --download` | Download only; safe while Spark is running |
+| `spark-omarchy update` | Confirm, back up and apply an approved update while closed |
+| `spark-omarchy updates enable` / `disable` | Opt in/out of daily checks and downloads |
+| `spark-omarchy update --recover` | Recover an interrupted switch without launching Spark |
+| `spark-omarchy rollback --yes` | Roll back application files only before first launch |
 | `spark-omarchy uninstall --yes` | Remove integration; keep account data |
 
 Use `~/.local/bin/spark-omarchy` if your terminal has not yet picked up
-`~/.local/bin` in `PATH`. Nothing needs to be enabled at login.
+`~/.local/bin` in `PATH`. Spark itself is never enabled at login; update-check
+activity is added only if you explicitly enable the timer.
 
 ## Why a shim is necessary
 
@@ -147,8 +174,9 @@ login checks, TLS, account entitlements or authorization. See the
 - High CPU may be initial sync/indexing or a remaining compatibility issue;
   we have not established which. Do not call thermal throttling a fix.
 - **Do not update Spark from inside the app and assume the patch survives.**
-  New vendor builds need separate review and checksums. This project currently
-  has no automatic application upgrade path.
+  New vendor builds need separate review, signed approval and checksums. Updates
+  are downloaded automatically only after opt-in and applied only with explicit
+  confirmation. Post-launch database rollback is not automated.
 
 ## Troubleshooting
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import platform
 import shutil
 import tempfile
-from .common import Error, ROOT, executable, manifest, run
+from .common import Error, ROOT, current_manifest, executable, manifest, run
 from .integration import install_integration, preflight_integration
 from .vendor import digest, extract_icon, patch_foundation
 
@@ -49,30 +49,56 @@ def validate_shim(path):
         raise Error('Shim has no x64 unwind metadata; rebuild with a supported compiler.')
 
 
-def download_installer(paths, data, supplied=None):
+def download_installer(paths, data, supplied=None, quiet=False):
     if supplied:
         source = Path(supplied).expanduser().resolve()
         if not source.is_file() or digest(source) != data['installer_sha256']:
             raise Error('Installer checksum mismatch. Only the pinned vendor version is supported.')
         return source
+    if paths.cache.is_symlink():
+        raise Error('Refusing a symlinked installer cache directory.')
     paths.cache.mkdir(mode=0o700, parents=True, exist_ok=True)
     target = paths.cache / ('Spark-' + data['spark_version'] + '.exe')
-    if target.exists() and digest(target) == data['installer_sha256']:
-        return target
     partial = target.with_suffix('.download')
     if partial.is_symlink() or target.is_symlink():
         raise Error('Refusing a symlinked installer cache file.')
+    if target.exists() and digest(target) == data['installer_sha256']:
+        return target
     try:
         run([executable('curl'), '--fail', '--location', '--proto', '=https',
              '--proto-redir', '=https', '--tlsv1.2', '--retry', '2',
              '--connect-timeout', '20', '--max-time', '900',
-             '--output', str(partial), data['installer_url']])
+             '--output', str(partial), data['installer_url']], quiet=quiet)
         if digest(partial) != data['installer_sha256']:
             raise Error('Downloaded installer checksum mismatch; no vendor code was executed.')
         os.replace(partial, target)
     finally:
         partial.unlink(missing_ok=True)
     return target
+
+
+def prepare_app(source, data, shim, stage):
+    """Extract/patch only reviewed bytes; never launch the vendor app here."""
+    stage = Path(stage)
+    run(['7z', 'x', '-y', str(source), '-o' + str(stage / 'nsis'),
+         '$PLUGINSDIR/app-64.7z'], quiet=True)
+    archive = stage / 'nsis/$PLUGINSDIR/app-64.7z'
+    if not archive.is_file():
+        raise Error('Pinned installer payload missing; extraction failed.')
+    app = stage / 'app'
+    run(['7z', 'x', '-y', str(archive), '-o' + str(app)], quiet=True)
+    for relative, key in (('Spark Desktop.exe', 'app_sha256'), ('resources/app.asar', 'asar_sha256')):
+        file = app / relative
+        if not file.is_file() or (data.get(key) and digest(file) != data[key]):
+            raise Error('Extracted vendor executable/archive hash mismatch.')
+    bundle = app / data['bundle_relative']
+    foundation = bundle / 'Foundation.dll'
+    backup = bundle / 'Foundation.dll.spark-omarchy-original'
+    shutil.copyfile(foundation, backup)
+    patch_foundation(backup, foundation, data['foundation_sha256'], data['patched_foundation_sha256'])
+    shutil.copyfile(shim, bundle / 'spkenv.dll')
+    extract_icon(app / 'Spark Desktop.exe', stage / 'icon.png')
+    return app
 
 
 def copy_runtime(paths, shim):
@@ -85,6 +111,8 @@ def copy_runtime(paths, shim):
     shutil.copytree(ROOT / 'spark_omarchy', temporary / 'spark_omarchy',
                     ignore=shutil.ignore_patterns('__pycache__', '*.pyc'))
     shutil.copyfile(ROOT / 'manifest.json', temporary / 'manifest.json')
+    (temporary / 'trust').mkdir()
+    shutil.copyfile(ROOT / 'trust/updates.pem', temporary / 'trust/updates.pem')
     (temporary / 'native').mkdir()
     shutil.copyfile(shim, temporary / 'native/spkenv.dll')
     if paths.runtime.is_symlink():
@@ -106,12 +134,13 @@ def install(paths, *, supplied=None, accept_terms=False, no_integrate=False):
     with install_lock(paths):
         state = paths.state()
         if state and state.get('prepared'):
-            if state.get('spark_version') != data['spark_version']:
-                raise Error('Installed version differs; automatic upgrades are not supported.')
+            installed = current_manifest(state)
+            if state.get('spark_version') != installed['spark_version']:
+                raise Error('Installed version metadata is inconsistent; preserve it for recovery.')
             if not paths.app.is_file():
                 raise Error('Managed app is missing. Preserve data; see troubleshooting before reinstalling.')
-            foundation = paths.app_dir / data['bundle_relative'] / 'Foundation.dll'
-            if not foundation.is_file() or digest(foundation) != data['patched_foundation_sha256']:
+            foundation = paths.app_dir / installed['bundle_relative'] / 'Foundation.dll'
+            if not foundation.is_file() or digest(foundation) != installed['patched_foundation_sha256']:
                 raise Error('Managed vendor files changed (possibly an auto-update); refusing an unsafe repair.')
             # Refresh only our runtime from the invoked source/package entry
             # point; never replace the account-bearing app/prefix here.
@@ -136,23 +165,7 @@ def install(paths, *, supplied=None, accept_terms=False, no_integrate=False):
         source = download_installer(paths, data, supplied)
         with tempfile.TemporaryDirectory(prefix='prepare-', dir=paths.data) as staging:
             stage = Path(staging)
-            run(['7z', 'x', '-y', str(source), '-o' + str(stage / 'nsis'),
-                 '$PLUGINSDIR/app-64.7z'], quiet=True)
-            archive = stage / 'nsis/$PLUGINSDIR/app-64.7z'
-            if not archive.is_file():
-                raise Error('Pinned installer payload missing; extraction failed.')
-            app = stage / 'app'
-            run(['7z', 'x', '-y', str(archive), '-o' + str(app)], quiet=True)
-            if not (app / 'Spark Desktop.exe').is_file():
-                raise Error('Extracted app executable missing.')
-            bundle = app / data['bundle_relative']
-            foundation = bundle / 'Foundation.dll'
-            backup = bundle / 'Foundation.dll.spark-omarchy-original'
-            shutil.copyfile(foundation, backup)
-            patch_foundation(backup, foundation, data['foundation_sha256'],
-                             data['patched_foundation_sha256'])
-            shutil.copyfile(shim, bundle / 'spkenv.dll')
-            extract_icon(app / 'Spark Desktop.exe', stage / 'icon.png')
+            app = prepare_app(source, data, shim, stage)
             # Save an incomplete marker before the first prefix mutation. A failed
             # initialization cannot later be confused with an unrelated prefix.
             paths.save(state)
@@ -169,7 +182,7 @@ def install(paths, *, supplied=None, accept_terms=False, no_integrate=False):
             except BaseException:
                 run(['wineserver', '-k'], env=paths.environment(), quiet=True, check=False)
                 raise
-        state.update(prepared=True, shim_sha256=digest(shim))
+        state.update(prepared=True, shim_sha256=digest(shim), release_manifest=data)
         paths.save(state)
         if not no_integrate:
             install_integration(paths, state)

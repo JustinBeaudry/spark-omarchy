@@ -13,7 +13,7 @@ jobs:
       - name: Install test tools
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 binutils wine wine64 xvfb xauth desktop-file-utils
+          sudo apt-get install -y --no-install-recommends gcc-mingw-w64-x86-64 binutils wine wine64 xvfb xauth desktop-file-utils openssl
       - name: Python and syntax regression tests
         run: ./bin/test
       - name: Build shim and test its Windows API contract

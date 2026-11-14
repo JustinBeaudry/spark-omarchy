@@ -49,6 +49,28 @@ modifying state/files concurrently. Do not run setup in an untrusted shared HOME
 or XDG directory. The systemd user manager and graphical session must belong to
 the same intended user.
 
+## Approved update channel
+
+Automatic updates stop at authenticated metadata checks and verified downloads.
+The daily timer cannot apply an update or force-close Spark. Ed25519 approval
+signatures use a public key bundled with the client, a bounded/expiring catalog,
+and locally monotonic sequences. Only canonical vendor URLs and reviewed hashes,
+layouts and shim ABIs are accepted. A new integration client is required when
+approval metadata declares a newer minimum version. This is not a self-updating
+code execution pipeline or a complete TUF implementation.
+
+Explicit application while fully stopped makes a private offline prefix snapshot
+and a journaled application switch. Snapshots can contain credentials/mail and
+are not encrypted by this project, uploaded, or automatically pruned. They require
+at least the same protection as the live prefix. Starts are blocked by unfinished
+journals. Automatic rollback is refused after launch because data may have been
+migrated; restoring only an executable is not safe schema recovery.
+
+The maintainer's private signing key is never shipped to clients or CI. Owner-only
+permissions do not protect a plaintext key from same-user processes, including
+Wine apps: use encrypted/offline key storage and keep it out of the repo/KB.
+See [update trust, recovery and signing](docs/updates.md) for the precise limits.
+
 ## Reporting a vulnerability
 
 If GitHub's private vulnerability reporting is available for this repository,

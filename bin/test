@@ -5,3 +5,4 @@ cd "$root"
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 for script in bin/build-shim bin/test bin/test-native PKGBUILD; do bash -n "$script"; done
 python3 -m compileall -q spark_omarchy tests
+python3 -m py_compile bin/spark-omarchy bin/sign-catalog

@@ -8,13 +8,13 @@ Close Spark normally, wait for it to quit, then:
 spark-omarchy uninstall --yes
 ```
 
-This stops the dedicated managed service, removes this project's launcher/icon/
-user units, and restores previous OAuth handlers **only where ours is still
+This stops the dedicated managed service, disables/stops update checks, removes
+this project's launcher/icon/user units, and restores previous OAuth handlers **only where ours is still
 selected**. It surgically removes its own associations rather than overwriting
 your entire `mimeapps.list`, so later browser/app choices are preserved.
 
-It retains the prefix, mail/account data, runtime, ownership record and installer
-cache. No unrelated Wine prefix or system package is removed. If the user-local
+It retains the prefix, mail/account data, runtime, ownership record, retained
+application versions, offline update snapshots and installer cache. No unrelated Wine prefix or system package is removed. If the user-local
 command was removed, use the repository's `./bin/spark-omarchy` or the package's
 `/usr/bin/spark-omarchy` for later recovery/reinstallation.
 
@@ -26,7 +26,8 @@ in-app update.
 
 **This is destructive and cannot be undone by this project.** It deletes this
 installation's entire managed data directory, including the Wine prefix,
-credentials/session state, caches and any locally stored mail or unsynced work.
+credentials/session state, caches, retained versions, offline update backups
+and any locally stored mail or unsynced work.
 Only do this after closing Spark and verifying that you have what you need.
 
 ```bash

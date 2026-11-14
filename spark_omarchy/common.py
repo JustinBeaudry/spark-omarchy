@@ -11,6 +11,9 @@ SERVICE = 'spark-omarchy.service'
 SLICE = 'spark-omarchy.slice'
 DESKTOP = 'spark-omarchy.desktop'
 OAUTH_DESKTOP = 'spark-omarchy-oauth.desktop'
+UPDATE_SERVICE = 'spark-omarchy-update.service'
+UPDATE_TIMER = 'spark-omarchy-update.timer'
+NATIVE_UPDATER_CONFIG = '{"features":{"autoUpdaterDisabled":true}}'
 SCHEMES = frozenset({
     'com.readdle.spark.auth-bridge.desktop-dist',
     'com.googleusercontent.apps.681834923750-3p9205dgnfbq0s196910u38tmn61ehc2',
@@ -91,7 +94,7 @@ class Paths:
         env = os.environ.copy()
         env.update(WINEPREFIX=str(self.prefix),
                    WINEDLLOVERRIDES='spkenv=n;winemenubuilder.exe=d;mscoree,mshtml=d',
-                   WINEDEBUG='-all')
+                   WINEDEBUG='-all', NODE_CONFIG=NATIVE_UPDATER_CONFIG)
         return env
 
     def state(self, required=False):
@@ -134,3 +137,13 @@ def prefix_processes(paths):
 
 def manifest():
     return json.loads((ROOT / 'manifest.json').read_text())
+
+
+def current_manifest(state):
+    """Installed app approvals evolve independently of integration code releases."""
+    data = state.get('release_manifest') or manifest()
+    if not isinstance(data, dict) or not isinstance(data.get('spark_version'), str):
+        raise Error('Installed application manifest is invalid.')
+    if state.get('prepared') and state.get('spark_version') != data['spark_version']:
+        raise Error('Installed version and approval metadata disagree; preserve state for recovery.')
+    return data

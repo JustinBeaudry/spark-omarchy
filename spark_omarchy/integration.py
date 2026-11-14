@@ -1,6 +1,8 @@
 """User-owned desktop integration with selective OAuth rollback."""
 import shutil
+from . import __version__
 from .common import (DESKTOP, OAUTH_DESKTOP, SCHEMES, SERVICE, SLICE,
+                     UPDATE_SERVICE, UPDATE_TIMER, NATIVE_UPDATER_CONFIG,
                      Error, atomic_write, executable, run)
 
 
@@ -22,6 +24,12 @@ def desktop_quote(value):
     return '"' + escaped.replace('\\', '\\\\').replace('%', '%%') + '"'
 
 
+def xdg_environment(paths):
+    return '\n'.join('Environment=' + unit_quote(key + '=' + str(value)) for key, value in (
+        ('XDG_DATA_HOME', paths.data_base), ('XDG_CONFIG_HOME', paths.config_base),
+        ('XDG_CACHE_HOME', paths.cache_base)))
+
+
 def service_text(paths, wine, wineserver):
     return f'''[Unit]
 Description=Spark Mail (unofficial Wine integration)
@@ -32,7 +40,10 @@ Slice={SLICE}
 Environment={unit_quote('WINEPREFIX=' + str(paths.prefix))}
 Environment="WINEDLLOVERRIDES=spkenv=n;winemenubuilder.exe=d;mscoree,mshtml=d"
 Environment=WINEDEBUG=-all
+{xdg_environment(paths)}
+Environment={unit_quote('NODE_CONFIG=' + NATIVE_UPDATER_CONFIG)}
 WorkingDirectory={str(paths.app_dir).replace('%', '%%')}
+ExecStartPre={unit_quote(paths.bin, arguments=True)} guard-start
 ExecStart={unit_quote(wine, arguments=True)} {unit_quote(paths.app, arguments=True)}
 # Spark performs its own quit on normal window close; clean leftover helpers.
 # A server that has already exited is not an error; cgroup cleanup still applies.
@@ -42,6 +53,39 @@ TimeoutStopSec=10
 StandardOutput=null
 StandardError=null
 Restart=no
+'''
+
+
+def update_service_text(paths):
+    return f'''[Unit]
+Description=Check and download approved Spark updates (never apply)
+
+[Service]
+Type=oneshot
+{xdg_environment(paths)}
+ExecStart={unit_quote(paths.bin, arguments=True)} update --download --background
+Nice=10
+UMask=0077
+NoNewPrivileges=yes
+TimeoutStartSec=20min
+StandardOutput=null
+StandardError=null
+'''
+
+
+def update_timer_text():
+    return '''[Unit]
+Description=Daily approved Spark update check (opt-in)
+
+[Timer]
+OnActiveSec=2min
+OnCalendar=daily
+RandomizedDelaySec=30min
+Persistent=true
+Unit=spark-omarchy-update.service
+
+[Install]
+WantedBy=timers.target
 '''
 
 
@@ -65,6 +109,7 @@ def query_handler(scheme):
 
 def owned_files(paths):
     return [paths.bin, paths.units / SERVICE, paths.units / SLICE,
+            paths.units / UPDATE_SERVICE, paths.units / UPDATE_TIMER,
             paths.applications / DESKTOP, paths.applications / OAUTH_DESKTOP,
             paths.data_base / 'icons/hicolor/256x256/apps/spark-omarchy.png']
 
@@ -101,7 +146,11 @@ def install_integration(paths, state):
     if not paths.runtime.exists():
         raise Error('Runtime copy missing; rerun install.')
     entry = f'''#!/usr/bin/env python3
+import os
 import sys
+os.environ.setdefault('XDG_DATA_HOME', {str(paths.data_base)!r})
+os.environ.setdefault('XDG_CONFIG_HOME', {str(paths.config_base)!r})
+os.environ.setdefault('XDG_CACHE_HOME', {str(paths.cache_base)!r})
 sys.path.insert(0, {str(paths.runtime)!r})
 from spark_omarchy.cli import main
 sys.exit(main())
@@ -109,6 +158,8 @@ sys.exit(main())
     atomic_write(paths.bin, entry, 0o755)
     atomic_write(paths.units / SLICE, '[Unit]\nDescription=Spark Mail Wine processes (no CPU cap)\n\n[Slice]\nCPUWeight=100\n', 0o644)
     atomic_write(paths.units / SERVICE, service_text(paths, executable('wine'), executable('wineserver')), 0o644)
+    atomic_write(paths.units / UPDATE_SERVICE, update_service_text(paths), 0o644)
+    atomic_write(paths.units / UPDATE_TIMER, update_timer_text(), 0o644)
     atomic_write(paths.applications / DESKTOP, desktop_text(paths), 0o644)
     atomic_write(paths.applications / OAUTH_DESKTOP, desktop_text(paths, True), 0o644)
     icon = owned_files(paths)[-1]
@@ -122,6 +173,7 @@ sys.exit(main())
         if query_handler(scheme) != OAUTH_DESKTOP:
             raise Error('OAuth handler registration did not take effect; see troubleshooting.')
     state['integrated'] = True
+    state['integration_client_version'] = __version__
     paths.save(state)
 
 
@@ -147,6 +199,9 @@ def remove_association(text, scheme, desktop):
 
 
 def uninstall_integration(paths, state):
+    if str(paths.units / UPDATE_TIMER) in state.get('owned_files', []):
+        run(['systemctl', '--user', 'disable', '--now', UPDATE_TIMER], quiet=True, check=False)
+        run(['systemctl', '--user', 'stop', UPDATE_SERVICE], quiet=True, check=False)
     # Never restore a whole old mimeapps.list: newer user choices must survive.
     for scheme, previous in state.get('previous_handlers', {}).items():
         if scheme not in SCHEMES:
@@ -172,6 +227,7 @@ def uninstall_integration(paths, state):
     if paths.applications.exists():
         run(['update-desktop-database', str(paths.applications)], quiet=True)
     state['integrated'] = False
+    state['updates_enabled'] = False
     state['owned_files'] = []
     state['previous_handlers'] = {}
     paths.save(state)

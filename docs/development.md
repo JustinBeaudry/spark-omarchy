@@ -109,15 +109,20 @@ not raw application logs.
    real inbox behavior if authorized, normal close, no orphan helpers, native icon
    and no unexpected resource cap. Test an existing install separately; never
    substitute it for a clean install.
-7. Update `manifest.json`, project/package version, compatibility matrix and
-   release notes. Document every unverified capability and any migration path.
+7. Qualify the NODE_CONFIG updater-control flag, compute executable/app archive
+   hashes too, and add the reviewed release to `updates/catalog.json`. Set its
+   minimum client and shim ABI, then sign locally with a new sequence as described
+   in [approved updates](updates.md). Update bootstrap pins only deliberately.
+   Document every unverified capability and any migration path.
 8. Review legal/distribution boundaries: only our source/DLL ships. The installer,
    modified Foundation, icon, account data, logs and dumps must remain local.
 
-Currently the CLI deliberately refuses application-version upgrades. A future
-upgrade implementation needs an offline backup/rollback design and must not
-silently replace an account-bearing prefix. Do not remove that guard just to
-accept a newer installer.
+The update CLI accepts only signed approved version changes. Automatic activity
+stops at verified download; explicit application requires a stopped prefix,
+confirmation, an offline snapshot and a journaled/versioned switch. Unfinished
+transactions block managed starts. Rollback is allowed only before first launch;
+post-launch data migrations require deliberate manual recovery, not an old-EXE
+swap. Do not weaken those guards to accept an unreviewed installer.
 
 ## Publishing
 
