@@ -1,13 +1,13 @@
 # Local recipe: run makepkg -si from the cloned repository root.
 # Spark and its icon are downloaded/extracted later, never packaged here.
 pkgname=spark-omarchy
-pkgver=0.1.0
+pkgver=0.2.0
 pkgrel=1
 pkgdesc='Unofficial experimental Spark Mail integration for Omarchy using Wine'
 arch=('x86_64')
 url='https://github.com/JustinBeaudry/spark-omarchy'
 license=('MIT')
-depends=('wine' '7zip' 'python' 'curl' 'desktop-file-utils')
+depends=('wine' '7zip' 'python' 'curl' 'desktop-file-utils' 'openssl')
 makedepends=('clang' 'binutils')
 source=()
 sha256sums=()
@@ -24,10 +24,11 @@ check() {
 
 package() {
   local target="$pkgdir/usr/lib/$pkgname"
-  install -d "$target/bin" "$target/native" "$pkgdir/usr/bin"
+  install -d "$target/bin" "$target/native" "$target/trust" "$pkgdir/usr/bin"
   cp -r "$startdir/spark_omarchy" "$target/"
   find "$target" -type d -name __pycache__ -prune -exec rm -rf '{}' +
   install -m644 "$startdir/manifest.json" "$target/manifest.json"
+  install -m644 "$startdir/trust/updates.pem" "$target/trust/updates.pem"
   install -m755 "$startdir/bin/spark-omarchy" "$target/bin/spark-omarchy"
   install -m644 "$srcdir/generated-native/spkenv.dll" "$target/native/spkenv.dll"
   ln -s /usr/lib/spark-omarchy/bin/spark-omarchy "$pkgdir/usr/bin/spark-omarchy"

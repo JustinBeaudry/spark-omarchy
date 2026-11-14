@@ -6,7 +6,8 @@
 - A working systemd **user** manager and `~/.local/bin` available to your shell.
 - XDG desktop integration (`xdg-mime`, `update-desktop-database`).
 - A browser able to launch registered custom protocols.
-- The exact Spark build in `manifest.json`; currently `3.32.4.141552`.
+- The reviewed bootstrap build in `manifest.json` (`3.32.4.141552`) or a version
+  explicitly approved in the signed update catalog. Initially these are the same.
 
 The manual experiment used Wine `11.20-1`. Other Wine builds may work, fail
 differently, or implement the missing API themselves. The shim is not proof of
@@ -29,7 +30,10 @@ Flatpak/Bottles prefixes are not supported by this installer.
 | Full mailbox sync / daily reliability | Not qualified |
 | Attachments / printing / notifications | Not qualified |
 | Microsoft/Yahoo account login | Schemes routed, provider-specific sign-in not manually qualified |
-| New Spark versions / in-app updater | Not supported without fresh review |
+| Approved update mechanism | Signed catalog/download verification, offline snapshots, switching and recovery have synthetic regression tests |
+| Native background updater | NODE_CONFIG disabling flag confirmed in a clean-prefix main-process runtime test on the bootstrap version |
+| Real mailbox upgrade migrations | Not qualified; initial catalog approves only the bootstrap version |
+| New Spark versions / manual in-app updater | Require fresh review; use the approved updater, not Spark's manual updater |
 | CI on GitHub | See actual workflow results; do not infer mail functionality from unit tests |
 
 Do not conflate the original signed-in prototype with the newly packaged

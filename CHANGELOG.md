@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.0 — approved-update checks and downloads
+
+- Added an Ed25519-signed, expiring stable catalog, monotonic sequence/equivocation
+  checks, artifact pins, minimum client and shim-ABI gates. The initial catalog
+  still approves only the already-reviewed bootstrap Spark version.
+- Added opt-in daily checks and verified downloads with deduplicated notifications;
+  background mode can never apply, stop Spark, or run a vendor app.
+- Added explicit closed-prefix application with private offline snapshots,
+  versioned app storage, journaled migration, atomic pointer switching and crash
+  recovery. Rollback is allowed only before first launch; data migrations are not
+  automatically reversed after launch.
+- Disabled Spark's normal background updater using its existing NODE_CONFIG flag;
+  verified that flag in a fresh-prefix main-process runtime test. Its manual
+  update menu remains unsupported and must not be used for managed updates.
+- Added service pre-start guards, update-state-aware diagnostics, timer uninstall
+  cleanup, signing tooling, failure/recovery tests and an update/security guide.
+- Integration-code/shim updates remain explicit source/package upgrades. No new
+  vendor version or real mailbox migration is claimed qualified by this release.
+
 ## 0.1.0 — experimental first release
 
 - Added a per-user installer for the reviewed Spark Desktop `3.32.4.141552` build,

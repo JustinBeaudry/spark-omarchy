@@ -34,7 +34,9 @@ The user-local entry point is intentionally independent of the system package.
 Removing the Arch package alone does not erase downloaded Spark or account data.
 Use the uninstaller before removing the source/package if you want the desktop
 integration removed as well. For future code updates, use the new source/package
-entry point explicitly; no automatic runtime/application upgrades are promised.
+entry point explicitly to refresh the user-local runtime. Integration-code
+updates are not automatic; application updates follow the separate signed,
+explicit-application flow in [approved updates](updates.md).
 
 ## What installation does
 
@@ -67,27 +69,37 @@ to absolute paths. `~/.local/bin` remains the launcher location.
 | `~/.local/share/spark-omarchy/prefix/` | Dedicated Wine prefix, Spark, accounts, mail/cache data |
 | `~/.local/share/spark-omarchy/runtime/` | This project's standalone Python runtime and own shim |
 | `~/.local/share/spark-omarchy/state.json` | Private version/ownership/previous-handler record |
-| `~/.local/share/spark-omarchy/backups/` | Original mimeapps snapshots for manual recovery, not blind restoration |
+| `~/.local/share/spark-omarchy/backups/` | MIME snapshots and private offline prefix snapshots for approved updates |
+| `~/.local/share/spark-omarchy/versions/` | Retained versioned application files, not account data |
+| `~/.local/share/spark-omarchy/update-state.json` | Catalog sequence, checks and notification deduplication |
+| `~/.local/share/spark-omarchy/pending-update.json` | Signed approval envelope for a downloaded update |
 | `~/.local/share/spark-omarchy/icon.png` | Locally extracted vendor icon |
 | `~/.local/share/icons/hicolor/256x256/apps/spark-omarchy.png` | Launcher icon |
 | `~/.local/share/applications/spark-omarchy.desktop` | Visible Spark Mail launcher |
 | `~/.local/share/applications/spark-omarchy-oauth.desktop` | Hidden callback handler |
 | `~/.config/systemd/user/spark-omarchy.service` | Managed app process/lifecycle |
 | `~/.config/systemd/user/spark-omarchy.slice` | Process grouping; **no hard CPU limit** |
+| `~/.config/systemd/user/spark-omarchy-update.service` | Checks/downloads only; no application step |
+| `~/.config/systemd/user/spark-omarchy-update.timer` | Daily checks, disabled until explicit opt-in |
 | `~/.local/bin/spark-omarchy` | User-local command |
 | `~/.cache/spark-omarchy/` | Reviewed vendor installer download |
 
 Account state is never copied into the source tree. State is written atomically
 with mode 0600. Fresh managed data/prefix directories use mode 0700. Generated
 integration files are user-owned; system Wine and `/usr/share/omarchy` are untouched.
-Default browser, `mailto` and login autostart are not changed.
+Default browser and `mailto` are not changed. Spark never starts at login.
+The update-check timer is installed but disabled until explicitly opted in.
+The native background updater is disabled through the reviewed NODE_CONFIG flag;
+no private app-setting database or vendor archive is edited for that control.
 
 ## Repeat installation and repair
 
-Running `install` again for an intact install of the same reviewed version
-repairs owned integration rather than downloading or replacing account data.
-`repair` restores owned files/registrations without rebuilding the application.
-An unrelated prefix, launcher, symlink or unexpected patch is refused.
+Running `install` again for an intact reviewed installation refreshes our runtime
+and repairs owned integration rather than replacing account data. Approved
+installed application manifests are retained independently of the bootstrap pin.
+`repair` refreshes our runtime/shim resources and restores owned files/registrations
+without rebuilding or replacing the vendor application. An unrelated prefix,
+launcher, symlink or unexpected patch is refused.
 
 An interrupted integration can leave some handlers/files installed. Previous
 handler information is saved **before** those changes, so rerunning install or

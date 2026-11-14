@@ -90,9 +90,12 @@ Stop. The tool intentionally rejects unexpected installers or Foundation DLLs.
 - Do not download a replacement from an untrusted third-party archive.
 - Do not apply the old patch blindly after accepting an in-app update.
 
-A changed app may need a new compatibility release. There is no automatic app
-upgrade path yet. Keep account data and the state record intact while diagnosing.
-See [development](development.md#reviewing-a-new-spark-version).
+A changed app may need a new signed approval or integration-client release.
+Keep account data and state intact. Use the [approved updater](updates.md), not
+the app's manual updater. For an interrupted managed switch, keep Spark closed
+and run `spark-omarchy update --recover`; do not delete its journal. An expired,
+invalid or older signed catalog is rejected without applying anything. For
+reviewing candidates, see [development](development.md#reviewing-a-new-spark-version).
 
 ## Interrupted preparation
 
