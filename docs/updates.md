@@ -124,8 +124,11 @@ your user files/network. No package can make a Wine prefix a security sandbox.
 
 The first directory-to-pointer conversion needs more than one filesystem rename;
 it is **journaled/recoverable**, not falsely described as a single atomic action.
-Subsequent pointer changes use atomic replacement. Managed starts refuse a pending
-journal. A regular error attempts recovery; a killed process/power loss leaves
+Subsequent pointer changes use atomic replacement. Staged files and offline
+snapshots are flushed before publication; state, pointer and journal directory
+entries are fsynced in order. Automated tests simulate process death, not physical
+power cuts or storage hardware failure; durability still depends on the filesystem
+and hardware honoring fsync. Managed starts refuse a pending journal. A regular error attempts recovery; a killed process/power loss leaves
 an explicit recovery task rather than pretending installation succeeded.
 
 Snapshots can contain credentials, mail and unsynced state. They are owner-private,

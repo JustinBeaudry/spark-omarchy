@@ -6,7 +6,7 @@ import unittest
 from unittest.mock import patch
 import zlib
 from spark_omarchy.cli import callback_arguments, forwarding_command
-from spark_omarchy.common import Error, Paths, SCHEMES, manifest
+from spark_omarchy.common import Error, Paths, SCHEMES, atomic_write, manifest
 from spark_omarchy.integration import desktop_text, remove_association, service_text, unit_quote
 from spark_omarchy.vendor import dib_to_png, patch_foundation
 
@@ -131,6 +131,14 @@ class PathAndIntegrationTests(unittest.TestCase):
             p.save({'project': 'spark-omarchy', 'schema': 1})
             self.assertEqual(p.state()['schema'], 1)
             self.assertEqual(p.state_file.stat().st_mode & 0o777, 0o600)
+
+    def test_atomic_state_write_persists_parent_directory(self):
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / 'state.json'
+            with patch('spark_omarchy.common.fsync_directory') as sync:
+                atomic_write(target, '{}')
+            sync.assert_called_once_with(target.parent)
+            self.assertEqual(target.read_text(), '{}')
 
     def test_symlinked_state_rejected(self):
         with tempfile.TemporaryDirectory() as d:

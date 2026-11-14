@@ -243,6 +243,19 @@ class UpdateTests(SigningFixture):
         self.assertFalse(self.paths.state()['last_update']['launched'])
         self.assertFalse((self.paths.data / 'update-transaction.json').exists())
 
+    def test_snapshot_and_versions_are_flushed_before_pointer_switch(self):
+        events = []
+        original = updater.replace_pointer
+        def pointer(paths, target):
+            events.append('pointer')
+            original(paths, target)
+        with patch('spark_omarchy.updater.fsync_tree', side_effect=lambda path: events.append(Path(path).name)), \
+             patch('spark_omarchy.updater.replace_pointer', side_effect=pointer):
+            self.apply()
+        self.assertTrue(events[0].startswith('update-'))
+        self.assertLess(events.index('prepared-version'), events.index('pointer'))
+        self.assertLess(events.index(self.old['spark_version']), events.index('pointer'))
+
     def test_snapshot_preserves_symlink_without_reading_its_target(self):
         outside = Path(self.temp.name) / 'outside'
         outside.mkdir()

@@ -51,6 +51,26 @@ def executable(name):
     return path
 
 
+def fsync_directory(path):
+    """Persist directory-entry changes, not just the bytes of renamed files."""
+    descriptor = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def fsync_tree(root):
+    """Make a private offline snapshot/staged version durable without following links."""
+    for directory, _, files in os.walk(root, topdown=False, followlinks=False):
+        for name in files:
+            path = Path(directory) / name
+            if not path.is_symlink() and path.is_file():
+                with path.open('rb') as handle:
+                    os.fsync(handle.fileno())
+        fsync_directory(directory)
+
+
 def atomic_write(path, text, mode=0o600):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,6 +82,7 @@ def atomic_write(path, text, mode=0o600):
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temporary, path)
+        fsync_directory(path.parent)
     finally:
         if os.path.exists(temporary):
             os.unlink(temporary)

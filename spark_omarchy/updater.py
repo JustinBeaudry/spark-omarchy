@@ -16,7 +16,8 @@ import tempfile
 import urllib.request
 import uuid
 from . import __version__
-from .common import Error, atomic_write, current_manifest, prefix_processes, run
+from .common import (Error, atomic_write, current_manifest, fsync_directory,
+                     fsync_tree, prefix_processes, run)
 from .installer import download_installer, install_lock, prepare_app
 from .releases import FEED_URL, MAX_FEED, verify_envelope, version
 from .vendor import digest
@@ -206,6 +207,7 @@ def snapshot(paths, state):
     save_json(root / 'state.json', state)
     if (paths.data / 'icon.png').is_file():
         shutil.copyfile(paths.data / 'icon.png', root / 'icon.png')
+    fsync_tree(root)
     save_json(root / 'snapshot.json', {'schema': 1, 'created_at': now_string(), 'app_excluded': True,
                                        'spark_version': state['spark_version']})
     return identifier
@@ -216,6 +218,7 @@ def replace_pointer(paths, target):
     temporary.symlink_to(target, target_is_directory=True)
     try:
         os.replace(temporary, paths.app_dir)
+        fsync_directory(paths.app_dir.parent)
     finally:
         temporary.unlink(missing_ok=True)
 
@@ -232,8 +235,11 @@ def copy_icon(paths, source):
             try:
                 with os.fdopen(fd, 'wb') as output, source.open('rb') as original:
                     shutil.copyfileobj(original, output)
+                    output.flush()
+                    os.fsync(output.fileno())
                 os.chmod(temporary, 0o644 if target.name == 'spark-omarchy.png' else 0o600)
                 os.replace(temporary, target)
+                fsync_directory(target.parent)
             finally:
                 if os.path.exists(temporary):
                     os.unlink(temporary)
@@ -270,6 +276,7 @@ def recover_transaction(paths):
             shutil.rmtree(target)
     paths.save(before)
     journal.unlink()
+    fsync_directory(paths.data)
     return True
 
 
@@ -295,10 +302,14 @@ def switch_app(paths, before, after):
             shutil.copyfile(paths.data / 'icon.png', old_root / 'icon.png')
             save_json(old_root / 'release.json', old)
             paths.app_dir.rename(old_root / 'app')
+            fsync_tree(old_root)
+            fsync_directory(old_root.parent)
+            fsync_directory(paths.app_dir.parent)
         replace_pointer(paths, new_root / 'app')
         paths.save(after)
         copy_icon(paths, new_root / 'icon.png')
         journal.unlink()
+        fsync_directory(paths.data)
     except BaseException:
         # SIGKILL/power loss leaves a journal; managed start refuses it until
         # explicit recovery. Ordinary failures recover before propagating.
@@ -365,7 +376,10 @@ def apply(paths, *, yes=False, expected_version=None):
                 app.rename(prepared / 'app')
                 shutil.copyfile(stage / 'icon.png', prepared / 'icon.png')
                 save_json(prepared / 'release.json', release)
+                fsync_tree(prepared)
                 prepared.rename(target)
+                fsync_directory(target.parent)
+                fsync_directory(stage)
         assert_idle(paths)
         after = dict(before)
         after.update(spark_version=release['spark_version'], release_manifest=release,
