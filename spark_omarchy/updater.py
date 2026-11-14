@@ -357,11 +357,15 @@ def apply(paths, *, yes=False, expected_version=None):
                 validate_app(app, release)
                 backup = snapshot(paths, before)
                 assert_idle(paths)
-                # New-version payload remains inactive and is never launched here.
-                target.mkdir(mode=0o700)
-                app.rename(target / 'app')
-                shutil.copyfile(stage / 'icon.png', target / 'icon.png')
-                save_json(target / 'release.json', release)
+                # Publish only a complete version directory. An interruption
+                # before this rename leaves disposable staging, not an unusable
+                # canonical target that would block all subsequent retries.
+                prepared = stage / 'prepared-version'
+                prepared.mkdir(mode=0o700)
+                app.rename(prepared / 'app')
+                shutil.copyfile(stage / 'icon.png', prepared / 'icon.png')
+                save_json(prepared / 'release.json', release)
+                prepared.rename(target)
         assert_idle(paths)
         after = dict(before)
         after.update(spark_version=release['spark_version'], release_manifest=release,

@@ -366,6 +366,47 @@ class UpdateTests(SigningFixture):
         self.assertTrue(self.paths.app.is_file())
         self.assertFalse((self.paths.data / 'update-transaction.json').exists())
 
+    def test_incomplete_staged_publication_does_not_block_retry(self):
+        self.queue()
+        original = updater.save_json
+        def fail_before_publication(path, value):
+            if path.parent.name == 'prepared-version' and path.name == 'release.json':
+                raise OSError('synthetic staged-publication failure')
+            original(path, value)
+        with patch('spark_omarchy.updater.prefix_processes', return_value=[]), \
+             patch('spark_omarchy.updater.prepare_app', side_effect=self.prepare), \
+             patch('spark_omarchy.updater.save_json', side_effect=fail_before_publication), self.assertRaises(OSError):
+            updater.apply(self.paths, yes=True)
+        self.assertFalse((self.paths.data / 'versions' / self.new['spark_version']).exists())
+        self.assertFalse((self.paths.data / 'update-transaction.json').exists())
+        self.assertTrue(self.paths.app.is_file())
+        with patch('spark_omarchy.updater.prefix_processes', return_value=[]), \
+             patch('spark_omarchy.updater.prepare_app', side_effect=self.prepare):
+            self.assertEqual(updater.apply(self.paths, yes=True)['status'], 'applied')
+
+    def test_process_death_before_version_publication_keeps_old_app_retryable(self):
+        self.queue()
+        def child():
+            original = updater.save_json
+            def crash(path, value):
+                original(path, value)
+                if path.parent.name == 'prepared-version' and path.name == 'release.json':
+                    os._exit(99)
+            with patch('spark_omarchy.updater.prefix_processes', return_value=[]), \
+                 patch('spark_omarchy.updater.prepare_app', side_effect=self.prepare), \
+                 patch('spark_omarchy.updater.save_json', side_effect=crash):
+                updater.apply(self.paths, yes=True)
+        process = multiprocessing.get_context('fork').Process(target=child)
+        process.start()
+        process.join(15)
+        self.assertEqual(process.exitcode, 99)
+        self.assertFalse((self.paths.data / 'versions' / self.new['spark_version']).exists())
+        self.assertFalse(self.paths.app_dir.is_symlink())
+        self.assertEqual(self.paths.state()['spark_version'], self.old['spark_version'])
+        with patch('spark_omarchy.updater.prefix_processes', return_value=[]), \
+             patch('spark_omarchy.updater.prepare_app', side_effect=self.prepare):
+            self.assertEqual(updater.apply(self.paths, yes=True)['status'], 'applied')
+
     def test_initial_migration_metadata_failure_is_retryable(self):
         self.queue()
         original = updater.save_json
